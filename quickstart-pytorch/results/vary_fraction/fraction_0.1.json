@@ -1,0 +1,26 @@
+[
+    {
+        "round": 1,
+        "num_training_clients": 5,
+        "train_loss": 1.879091999421899,
+        "train_acc": 0.5432692307692307,
+        "eval_loss": 2.295752464686457,
+        "eval_acc": 0.13517135745739997
+    },
+    {
+        "round": 2,
+        "num_training_clients": 5,
+        "train_loss": 1.1179086836411192,
+        "train_acc": 0.6739409499358151,
+        "eval_loss": 3.1500639551686205,
+        "eval_acc": 0.15939898742446512
+    },
+    {
+        "round": 3,
+        "num_training_clients": 5,
+        "train_loss": 0.7333060816695463,
+        "train_acc": 0.7895782396088019,
+        "eval_loss": 2.256925706244544,
+        "eval_acc": 0.30744999212474405
+    }
+]
