@@ -20,18 +20,18 @@ The core focus of this project is to analyze and mitigate **Client Drift** cause
 1. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
-   '''
+   ```
 2. **Generate the partitioned dataset:
    Modify the alpha-dirichlet parameter in pyproject.toml, then run:
-   '''bash
+   ```bash
    python3 generate_data.py
-   '''
+   ```
 3. **Start the simulation:
-   '''bash
+   ```bash
    flwr run ./
    flwr log id (to see the logs)
-   '''
+   ```
 4. **Analyze the results:
-   '''bash
+   ```bash
    python3 analysis.py
-   '''
+   ```
