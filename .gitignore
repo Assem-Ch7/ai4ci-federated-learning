@@ -17,5 +17,5 @@ results/*.png
 .vscode/
 .DS_Store
 
-.pdf
-.pt
+*.pdf
+*.pt
