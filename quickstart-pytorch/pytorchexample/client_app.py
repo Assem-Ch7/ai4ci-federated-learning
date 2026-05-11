@@ -1,6 +1,7 @@
 """pytorchexample: A Flower / PyTorch app."""
 
 import torch
+import copy
 from flwr.client import ClientApp
 from flwr.common import Context, Message, RecordDict, ArrayRecord, ConfigRecord
 
@@ -22,8 +23,9 @@ def train(msg: Message, context: Context) -> Message:
     local_epochs = int(context.run_config.get("local-epochs", 1))
     batch_size = int(context.run_config.get("batch-size", 32))
     
-    # Read the learning rate sent by the server in the message payload 
+    # Read the learning rate and proximal parameter sent by the server in the message payload 
     lr = float(msg.content["config"].get("lr", 0.01))
+    mu = float(msg.content["config"].get("mu", 0.0)) # For FedProx; defaults to 0.0 (FedAvg)
 
     # 2. Load the client dataset
     train_loader, _ = load_client_data(cid=partition_id, data_dir=data_dir, batch_size=batch_size)
@@ -45,12 +47,20 @@ def train(msg: Message, context: Context) -> Message:
     model = CustomFashionModel().to(device)
     model.load_state_dict(msg.content["arrays"].to_torch_state_dict())
     
+    # Create an exact, independent copy of the starting weights
+    global_model = copy.deepcopy(model)
+    
+    # Freeze it so PyTorch doesn't track its gradients (saves RAM and compute)
+    for param in global_model.parameters():
+        param.requires_grad = False
+    global_model.eval()
+
     optimizer = torch.optim.SGD(model.parameters(), lr=lr)
     criterion = torch.nn.CrossEntropyLoss()
     
     avg_loss, accuracy = 0.0, 0.0
     for _ in range(local_epochs):
-        avg_loss, accuracy = model.train_epoch(train_loader, criterion, optimizer, device)
+        avg_loss, accuracy = model.train_epoch(train_loader, criterion, optimizer, device, mu, global_model)
         
     # 5. Pack results and return
     out_payload = RecordDict()
