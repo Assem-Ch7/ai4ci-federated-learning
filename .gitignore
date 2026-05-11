@@ -10,7 +10,7 @@ dataset/
 
 # Results & Logs (Optional, but good practice so you don't commit huge JSONs)
 results/*.json
-results/*.png
+
 !results/.gitkeep 
 
 # IDEs and OS
