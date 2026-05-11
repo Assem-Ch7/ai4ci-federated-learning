@@ -61,6 +61,7 @@ def main(grid: Grid, context: Context) -> None:
     num_rounds = int(context.run_config["num-server-rounds"])
     lr = float(context.run_config["learning-rate"])
     seed = int(context.run_config["seed"])
+    mu = float(context.run_config.get("fedprox-mu", 0.0))
 
     global_rng = random.Random(seed)
     results = [] 
@@ -90,7 +91,7 @@ def main(grid: Grid, context: Context) -> None:
         for node_id in sampled_nodes:
             payload = RecordDict()
             payload["arrays"] = ArrayRecord(global_state_dict) 
-            payload["config"] = ConfigRecord({"lr": lr})
+            payload["config"] = ConfigRecord({"lr": lr, "mu": mu})
             
             msg = Message(
                 message_type="train",
@@ -108,6 +109,10 @@ def main(grid: Grid, context: Context) -> None:
         client_metrics = []
         
         for reply in train_replies:
+            if not reply.has_content():
+                print("Server: Skipping a client that crashed during training (likely Out of Memory).")
+                continue
+
             client_state_dicts.append(reply.content["arrays"].to_torch_state_dict())
             metrics = reply.content["metrics"]
             client_num_examples.append(int(metrics["num_examples"]))
@@ -115,7 +120,10 @@ def main(grid: Grid, context: Context) -> None:
                 "train_loss": float(metrics["train_loss"]),
                 "train_acc": float(metrics["train_acc"])
             })
-            
+        if not client_state_dicts:
+            print("CRITICAL: All sampled clients crashed this round! Skipping aggregation.")
+            continue
+
         # D. Aggregate updates to form the NEW global model
         global_state_dict = fedavg(client_state_dicts, client_num_examples)
         
@@ -150,13 +158,18 @@ def main(grid: Grid, context: Context) -> None:
         eval_metrics_list = []
         eval_num_examples = []
         for reply in eval_replies:
+            if not reply.has_content():
+                print("Server: Skipping a client that crashed during evaluation (likely Out of Memory).")
+                continue
             m = reply.content["metrics"]
             eval_num_examples.append(int(m["num_examples"]))
             eval_metrics_list.append({
                 "eval_loss": float(m["eval_loss"]),
                 "eval_acc": float(m["eval_acc"])
             })
-
+        if not eval_metrics_list:
+            print("CRITICAL: All evaluation clients crashed! Skipping eval metrics for this round.")
+            continue
         # 4. Aggregate evaluation metrics
         agg_eval = aggregate_metrics(eval_metrics_list, eval_num_examples)
         round_metrics["eval_loss"] = agg_eval.get("eval_loss", 0.0)
