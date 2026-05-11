@@ -42,3 +42,5 @@ batch-size = 64
 
 client-optimizer = "sgd"       # "sgd" or "adam"
 client-algorithm = "fedavg"    # "fedavg" or "fedsdg"
+
+fedprox-mu = 0.1
