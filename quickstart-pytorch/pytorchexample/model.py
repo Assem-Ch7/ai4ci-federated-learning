@@ -43,6 +43,17 @@ class CustomFashionModel(nn.Module):
             optimizer.zero_grad()
             outputs = self.forward(images)
             loss = criterion(outputs, labels)
+            # Only apply the penalty if mu > 0 (makes it backwards compatible with FedAvg!)
+            if global_model is not None and mu > 0.0:
+                proximal_term = 0.0
+                
+                # Pair up local weights and global weights layer by layer
+                for local_param, global_param in zip(self.parameters(), global_model.parameters()):
+                    # Calculate ||w - w(t)||^2
+                    proximal_term += torch.square(local_param - global_param).sum()
+                
+                # Add (mu / 2) * proximal_term to the main loss
+                loss += (mu / 2.0) * proximal_term
             loss.backward()
             optimizer.step()
             
