@@ -27,7 +27,7 @@ clientapp = "pytorchexample.client_app:app"
 [tool.flwr.app.config]
 # C- Data generation parameters
 num-clients = 50
-alpha-dirichlet = 100
+alpha-dirichlet = 0.01
 data-dir = "./data"
 
 # A- Server-side parameters

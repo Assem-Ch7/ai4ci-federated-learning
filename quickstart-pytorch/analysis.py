@@ -147,17 +147,34 @@ if __name__ == "__main__":
     
     # print("\nCheck the 'results/figures' folder for your comparison curves!")
 
-    # Load your three finished baseline runs
-    analyzer.add_run("FedAvg (IID, alpha=100)", "./results/tp2_baselines/fedavg_alpha_100.json")
-    analyzer.add_run("FedAvg (Moderate, alpha=1)", "./results/tp2_baselines/fedavg_alpha_1.json")
-    analyzer.add_run("FedAvg (Extreme, alpha=0.01)", "./results/tp2_baselines/fedavg_alpha_0.01.json")
+    # # Load your three finished baseline runs
+    # analyzer.add_run("FedAvg (IID, alpha=100)", "./results/tp2_baselines/fedavg_alpha_100.json")
+    # analyzer.add_run("FedAvg (Moderate, alpha=1)", "./results/tp2_baselines/fedavg_alpha_1.json")
+    # analyzer.add_run("FedAvg (Extreme, alpha=0.01)", "./results/tp2_baselines/fedavg_alpha_0.01.json")
     
-    # Print the terminal summary table
-    print("\n--- Phase 1 Baseline Results ---")
+    # # Print the terminal summary table
+    # print("\n--- Phase 1 Baseline Results ---")
+    # analyzer.print_run_summary_table()
+    
+    # # Generate and save the PNG graphs
+    # print("\nGenerating graphs...")
+    # analyzer.plot_all("results/figures/tp2_baselines")
+    # print("Graphs successfully saved to results/figures/")
+
+    # Load FedAvg Baselines
+    analyzer.add_run("FedAvg (IID)", "results/tp2_baselines/fedavg_alpha_100.json")
+    analyzer.add_run("FedAvg (Extreme)", "results/tp2_baselines/fedavg_alpha_0.01.json")
+    
+    # Load FedProx Results
+    analyzer.add_run("FedProx (IID, mu=0.1)", "results/tp2_fedprox/fedprox_alpha_100.json")
+    analyzer.add_run("FedProx (Extreme, mu=0.1)", "results/tp2_fedprox/fedprox_alpha_0.01.json")
+    
+    # Optional: You can add the alpha=1 runs too, but plotting 4 lines is often 
+    # cleaner for a report than plotting 6 lines.
+    
+    print("\n--- Final Phase 2 Comparison ---")
     analyzer.print_run_summary_table()
     
-    # Generate and save the PNG graphs
-    print("\nGenerating graphs...")
-    analyzer.plot_all("results/figures/tp2_baselines")
-    print("Graphs successfully saved to results/figures/")
-
+    print("\nGenerating final comparative graphs...")
+    analyzer.plot_all("results/figures/tp2_comparison_fedprox")
+    print("Graphs successfully saved to results/figures/tp2_comparison_fedprox/")
