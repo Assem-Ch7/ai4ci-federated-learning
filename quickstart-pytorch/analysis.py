@@ -161,20 +161,38 @@ if __name__ == "__main__":
     # analyzer.plot_all("results/figures/tp2_baselines")
     # print("Graphs successfully saved to results/figures/")
 
-    # Load FedAvg Baselines
-    analyzer.add_run("FedAvg (IID)", "results/tp2_baselines/fedavg_alpha_100.json")
-    analyzer.add_run("FedAvg (Extreme)", "results/tp2_baselines/fedavg_alpha_0.01.json")
+    # # Load FedAvg Baselines
+    # analyzer.add_run("FedAvg (IID)", "results/tp2_baselines/fedavg_alpha_100.json")
+    # analyzer.add_run("FedAvg (Extreme)", "results/tp2_baselines/fedavg_alpha_0.01.json")
     
-    # Load FedProx Results
-    analyzer.add_run("FedProx (IID, mu=0.1)", "results/tp2_fedprox/fedprox_alpha_100.json")
-    analyzer.add_run("FedProx (Extreme, mu=0.1)", "results/tp2_fedprox/fedprox_alpha_0.01.json")
+    # # Load FedProx Results
+    # analyzer.add_run("FedProx (IID, mu=0.1)", "results/tp2_fedprox/fedprox_alpha_100.json")
+    # analyzer.add_run("FedProx (Extreme, mu=0.1)", "results/tp2_fedprox/fedprox_alpha_0.01.json")
     
-    # Optional: You can add the alpha=1 runs too, but plotting 4 lines is often 
-    # cleaner for a report than plotting 6 lines.
+    # # Optional: You can add the alpha=1 runs too, but plotting 4 lines is often 
+    # # cleaner for a report than plotting 6 lines.
     
-    print("\n--- Final Phase 2 Comparison ---")
+    # print("\n--- Final Phase 2 Comparison ---")
+    # analyzer.print_run_summary_table()
+    
+    # print("\nGenerating final comparative graphs...")
+    # analyzer.plot_all("results/figures/tp2_comparison_fedprox")
+    # print("Graphs successfully saved to results/figures/tp2_comparison_fedprox/")
+
+
+    analyzer.add_run("FedAvg (Alpha=0.01)", "results/fedavg_alpha_0.01_lr_rate_0.001.json")
+    analyzer.add_run("FedProx (Alpha=0.01)", "results/fedprox_alpha_0.01_lr_rate_0.001.json")
+    analyzer.add_run("SCAFFOLD (Alpha=0.01)", "results/scaffold_alpha_0.01_lr_rate_0.001.json")
+
+    # 3. Add the Moderate Heterogeneity Runs (Alpha = 1.0)
+    analyzer.add_run("FedAvg (Alpha=1.0)", "results/fedavg_alpha_1_lr_rate_0.001.json")
+    analyzer.add_run("FedProx (Alpha=1.0)", "results/fedprox_alpha_1_lr_rate_0.001.json")
+    analyzer.add_run("SCAFFOLD (Alpha=1.0)", "results/scaffold_alpha_1_lr_rate_0.001.json")
+
+    # 4. Print the master summary table to the terminal
     analyzer.print_run_summary_table()
     
-    print("\nGenerating final comparative graphs...")
-    analyzer.plot_all("results/figures/tp2_comparison_fedprox")
-    print("Graphs successfully saved to results/figures/tp2_comparison_fedprox/")
+    # 5. Generate the final comparative plots
+    analyzer.plot_all("results/tp2_final_comparison_fedprox_scaffold_fedavg")
+    
+    print("\nSimulation visualization complete! Check the 'results/tp2_final_comparison_fedprox_scaffold_fedavg' folder.")

@@ -16,11 +16,10 @@ from pytorchexample.model import CustomFashionModel
 # Create ServerApp
 app = ServerApp()
 
-# --- Task 3.1 & 3.2: Helper Functions ---
+# --- Helper Functions ---
 
 def sample_clients(node_ids, fraction: float, global_rng: random.Random) -> List[int]:
     """Sample a fraction of available clients."""
-    # Convert the set of node_ids to a list so random.sample doesn't crash
     node_ids_list = list(node_ids)
     num_to_sample = max(1, int(len(node_ids_list) * fraction))
     return global_rng.sample(node_ids_list, k=num_to_sample)
@@ -50,18 +49,22 @@ def aggregate_metrics(metrics: List[Dict[str, float]], num_examples: List[int]) 
         
     return aggregated_metrics
 
-# --- Task 3.3: Manual Orchestration Loop ---
+# --- Manual Orchestration Loop ---
 
 @app.main()
 def main(grid: Grid, context: Context) -> None:
     """Main entry point for the ServerApp."""
     
-    # 1. Read run config using bracket notation
+    # 1. Read run config
     fraction_train = float(context.run_config["fraction-train"])
     num_rounds = int(context.run_config["num-server-rounds"])
     lr = float(context.run_config["learning-rate"])
     seed = int(context.run_config["seed"])
+    
+    # Read algorithm toggles
     mu = float(context.run_config.get("fedprox-mu", 0.0))
+    # Add a toggle in your TOML for SCAFFOLD!
+    use_scaffold = bool(context.run_config.get("use-scaffold", False)) 
 
     global_rng = random.Random(seed)
     results = [] 
@@ -70,7 +73,15 @@ def main(grid: Grid, context: Context) -> None:
     global_model = CustomFashionModel()
     global_state_dict = global_model.state_dict()
 
-    print(f"Starting manual FedAvg orchestration for {num_rounds} rounds...")
+    #  SCAFFOLD LOGIC: Initialize Global Compass 
+    global_c_dict = None
+    if use_scaffold:
+        print("🌍 Server initializing SCAFFOLD Global Control Variate (Compass).")
+        # Initialize c to all zeros, matching the shape of every model layer
+        global_c_dict = {k: torch.zeros_like(v) for k, v in global_state_dict.items()}
+    # ==========================================
+
+    print(f"Starting orchestration for {num_rounds} rounds...")
 
     for current_round in range(1, num_rounds + 1):
         print(f"\n--- Round {current_round} ---")
@@ -93,6 +104,10 @@ def main(grid: Grid, context: Context) -> None:
             payload["arrays"] = ArrayRecord(global_state_dict) 
             payload["config"] = ConfigRecord({"lr": lr, "mu": mu})
             
+            # 🏗️ Attach the Global Compass to the outgoing mail if SCAFFOLD is active
+            if use_scaffold:
+                payload["c_global"] = ArrayRecord(global_c_dict)
+                
             msg = Message(
                 message_type="train",
                 dst_node_id=node_id,
@@ -108,9 +123,12 @@ def main(grid: Grid, context: Context) -> None:
         client_num_examples = []
         client_metrics = []
         
+        # List to hold the returning Local Compasses
+        client_c_local_dicts = [] 
+        
         for reply in train_replies:
             if not reply.has_content():
-                print("Server: Skipping a client that crashed during training (likely Out of Memory).")
+                print("Server: Skipping a client that crashed during training.")
                 continue
 
             client_state_dicts.append(reply.content["arrays"].to_torch_state_dict())
@@ -120,13 +138,30 @@ def main(grid: Grid, context: Context) -> None:
                 "train_loss": float(metrics["train_loss"]),
                 "train_acc": float(metrics["train_acc"])
             })
+            
+            # 🏗️ Extract the returned Local Compass (c_k)
+            if use_scaffold and "c_local" in reply.content:
+                client_c_local_dicts.append(reply.content["c_local"].to_torch_state_dict())
+                
         if not client_state_dicts:
             print("CRITICAL: All sampled clients crashed this round! Skipping aggregation.")
             continue
 
-        # D. Aggregate updates to form the NEW global model
+        # D. Aggregate updates to form the NEW global model (Standard FedAvg Math)
         global_state_dict = fedavg(client_state_dicts, client_num_examples)
         
+        # SCAFFOLD LOGIC: Update Global Compass 
+        if use_scaffold and client_c_local_dicts:
+            num_participating = len(client_c_local_dicts)
+            
+            # c = c + (1/|S|) * sum(c_k - c)
+            for k in global_c_dict.keys():
+                # Sum the difference for the current layer
+                sum_diff = sum([c_k[k] - global_c_dict[k] for c_k in client_c_local_dicts])
+                # Apply the update
+                global_c_dict[k] = global_c_dict[k] + (1.0 / num_participating) * sum_diff
+        # ==========================================
+
         # E. Aggregate metrics for logging
         agg_metrics = aggregate_metrics(client_metrics, client_num_examples)
         round_metrics["train_loss"] = agg_metrics.get("train_loss", 0.0)
@@ -134,11 +169,11 @@ def main(grid: Grid, context: Context) -> None:
         
         print(f"Server: Evaluating global model for round {current_round}...")
         
-        # 1. Sample nodes for evaluation (e.g., 50%)
+        # 1. Sample nodes for evaluation
         fraction_eval = float(context.run_config.get("fraction-evaluate", 0.5))
         eval_nodes = sample_clients(available_node_ids, fraction_eval, global_rng)
         
-        # 2. Prepare evaluation messages with the NEW global_state_dict
+        # 2. Prepare evaluation messages
         eval_messages = []
         for node_id in eval_nodes:
             payload = RecordDict()
@@ -146,7 +181,7 @@ def main(grid: Grid, context: Context) -> None:
             payload["config"] = ConfigRecord({}) 
             
             eval_messages.append(Message(
-                message_type="evaluate", # This triggers @app.evaluate on clients
+                message_type="evaluate",
                 dst_node_id=node_id,
                 group_id=str(current_round),
                 content=payload
@@ -159,7 +194,6 @@ def main(grid: Grid, context: Context) -> None:
         eval_num_examples = []
         for reply in eval_replies:
             if not reply.has_content():
-                print("Server: Skipping a client that crashed during evaluation (likely Out of Memory).")
                 continue
             m = reply.content["metrics"]
             eval_num_examples.append(int(m["num_examples"]))
@@ -167,9 +201,10 @@ def main(grid: Grid, context: Context) -> None:
                 "eval_loss": float(m["eval_loss"]),
                 "eval_acc": float(m["eval_acc"])
             })
+            
         if not eval_metrics_list:
-            print("CRITICAL: All evaluation clients crashed! Skipping eval metrics for this round.")
             continue
+            
         # 4. Aggregate evaluation metrics
         agg_eval = aggregate_metrics(eval_metrics_list, eval_num_examples)
         round_metrics["eval_loss"] = agg_eval.get("eval_loss", 0.0)
@@ -178,10 +213,10 @@ def main(grid: Grid, context: Context) -> None:
         print(f"Round {current_round} Eval Loss: {round_metrics['eval_loss']:.4f}")
         print(f"Round {current_round} Eval Acc: {round_metrics['eval_acc']:.4f}")
 
-        # --- NOW append the full metrics (Train + Eval) to results ---
+        # Append metrics to results
         results.append(round_metrics)
         
-    # 4. Save results to JSON
+    # Save results to JSON
     save_path = Path("results")
     save_path.mkdir(parents=True, exist_ok=True)
     run_id = context.run_id

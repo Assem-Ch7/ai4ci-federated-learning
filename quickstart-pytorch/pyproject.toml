@@ -27,20 +27,21 @@ clientapp = "pytorchexample.client_app:app"
 [tool.flwr.app.config]
 # C- Data generation parameters
 num-clients = 50
-alpha-dirichlet = 0.01
+alpha-dirichlet = 1
 data-dir = "./data"
 
 # A- Server-side parameters
 num-server-rounds = 50
 fraction-train = 1.0
-learning-rate = 0.01
+learning-rate = 0.001
 seed = 42
 
 # B- Local training parameters
 local-epochs = 3
-batch-size = 64
+batch-size = 32
 
 client-optimizer = "sgd"       # "sgd" or "adam"
 client-algorithm = "fedavg"    # "fedavg" or "fedsdg"
 
-fedprox-mu = 0.1
+fedprox-mu = 0.0
+use-scaffold = false     # Turn on the SCAFFOLD compasses algorithm
