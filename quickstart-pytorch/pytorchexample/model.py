@@ -30,7 +30,11 @@ class CustomFashionModel(nn.Module):
         train_loader: DataLoader, 
         criterion: nn.Module, 
         optimizer: torch.optim.Optimizer, 
-        device: torch.device
+        device: torch.device,
+        global_model: nn.Module = None,
+        mu: float = 0.0,
+        c_global: List[torch.Tensor] = None, # 🏗️ SCAFFOLD: Server's compass
+        c_local: List[torch.Tensor] = None   # 🏗️ SCAFFOLD: Client's compass
     ) -> Tuple[float, float]:
         self.train()
         running_loss = 0.0
@@ -43,18 +47,32 @@ class CustomFashionModel(nn.Module):
             optimizer.zero_grad()
             outputs = self.forward(images)
             loss = criterion(outputs, labels)
-            # Only apply the penalty if mu > 0 (makes it backwards compatible with FedAvg!)
+            
+            # --- FEDPROX LOGIC ---
             if global_model is not None and mu > 0.0:
                 proximal_term = 0.0
-                
-                # Pair up local weights and global weights layer by layer
                 for local_param, global_param in zip(self.parameters(), global_model.parameters()):
-                    # Calculate ||w - w(t)||^2
                     proximal_term += torch.square(local_param - global_param).sum()
-                
-                # Add (mu / 2) * proximal_term to the main loss
                 loss += (mu / 2.0) * proximal_term
+            # ---------------------
+            
             loss.backward()
+            
+            # ==========================================
+            # 🏗️ SCAFFOLD LOGIC (Gradient Correction) 🏗️
+            # ==========================================
+            if c_global is not None and c_local is not None:
+                with torch.no_grad():
+                    for param, c, c_k in zip(self.parameters(), c_global, c_local):
+                        if param.grad is not None:
+                            # Move compasses to correct device
+                            c_tensor = c.to(device)
+                            c_k_tensor = c_k.to(device)
+                            
+                            # grad = grad - c_k + c
+                            param.grad.data.add_(c_tensor - c_k_tensor)
+            # ==========================================
+            
             optimizer.step()
             
             running_loss += loss.item() * images.size(0)
